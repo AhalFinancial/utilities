@@ -54,24 +54,24 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUDIO-01 | — | Pending |
-| AUDIO-02 | — | Pending |
-| TRANS-01 | — | Pending |
-| TRANS-02 | — | Pending |
-| TRANS-03 | — | Pending |
-| TRANS-04 | — | Pending |
-| SUMM-01 | — | Pending |
-| SUMM-02 | — | Pending |
-| SUMM-03 | — | Pending |
-| CLI-01 | — | Pending |
-| CLI-02 | — | Pending |
-| CLI-03 | — | Pending |
+| AUDIO-01 | Phase 1 | Pending |
+| AUDIO-02 | Phase 1 | Pending |
+| TRANS-01 | Phase 1 | Pending |
+| TRANS-02 | Phase 2 | Pending |
+| TRANS-03 | Phase 2 | Pending |
+| TRANS-04 | Phase 2 | Pending |
+| SUMM-01 | Phase 3 | Pending |
+| SUMM-02 | Phase 3 | Pending |
+| SUMM-03 | Phase 3 | Pending |
+| CLI-01 | Phase 1 | Pending |
+| CLI-02 | Phase 2 | Pending |
+| CLI-03 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 12 total
-- Mapped to phases: 0
-- Unmapped: 12 ⚠️
+- Mapped to phases: 12
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-02*
-*Last updated: 2026-03-02 after initial definition*
+*Last updated: 2026-03-02 after roadmap creation*
