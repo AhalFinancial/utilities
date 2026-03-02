@@ -28,12 +28,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Tool processes MP4, MKV, WebM, and AVI formats successfully
   3. Output file is automatically named based on source video (video.mp4 → video_transcript.md)
   4. Basic transcription works for short videos (5-10 minutes) in Spanish and English
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md — Project foundation, dependencies, and validation logic
+- [ ] 01-02-PLAN.md — Core pipeline: audio extraction, transcription, and formatting
+- [ ] 01-03-PLAN.md — CLI interface with progress display and file handling
 
 ### Phase 2: Production Transcription
 **Goal**: Reliable transcription for real-world usage (long videos, quality validation)
