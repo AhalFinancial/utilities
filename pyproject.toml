@@ -16,3 +16,6 @@ dependencies = [
 
 [project.scripts]
 transcribe = "transcribe.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["transcribe"]
