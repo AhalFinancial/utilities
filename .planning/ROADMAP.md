@@ -45,11 +45,12 @@ Plans:
   3. Tool displays progress bar during processing so user knows work is happening
   4. Tool auto-detects Spanish and English audio and produces accurate transcripts
   5. Long videos are processed using smart chunking with silence detection
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md — Audio chunking with silence detection and overlap deduplication
+- [ ] 02-02-PLAN.md — Transcriber language detection/quality validation and formatter upgrades
+- [ ] 02-03-PLAN.md — Parallel processing, progress display, and CLI integration
 
 ### Phase 3: Summarization
 **Goal**: AI-powered summaries that extract key points from transcripts
@@ -89,7 +90,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation Pipeline | 0/3 | Not started | - |
-| 2. Production Transcription | 0/2 | Not started | - |
+| 2. Production Transcription | 0/3 | Not started | - |
 | 3. Summarization | 0/2 | Not started | - |
 | 4. Polish & Resilience | 0/2 | Not started | - |
 
