@@ -10,30 +10,31 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 ## Current Position
 
 Phase: 1 of 4 (Foundation Pipeline)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: Executing
-Last activity: 2026-03-02 — Completed 01-01-PLAN.md (package foundation)
+Last activity: 2026-03-02 — Completed 01-02-PLAN.md (core transcription pipeline)
 
-Progress: [██░░░░░░░░] 8%
+Progress: [████░░░░░░] 17%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 4 minutes
-- Total execution time: 0.07 hours
+- Total plans completed: 2
+- Average duration: 3 minutes
+- Total execution time: 0.1 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 1 | 4 min | 4 min |
+| 01 | 2 | 6 min | 3 min |
 
 **Recent Plans:**
 
 | Plan | Duration | Tasks | Files | Completed |
 |------|----------|-------|-------|-----------|
 | Phase 01 P01 | 4 min | 3 tasks | 4 files | 2026-03-02 |
+| Phase 01 P02 | 2 min | 3 tasks | 3 files | 2026-03-02 |
 
 ## Accumulated Context
 
@@ -48,6 +49,8 @@ Recent decisions affecting current work:
 - CLI-first interface (simplest path to usable tool)
 - [Phase 01-01]: Use hatchling as build backend (modern, simple PyPA-recommended system)
 - [Phase 01-01]: Require system FFmpeg (not bundled) - PyAV only handles transcription
+- [Phase 01-02]: Use small Whisper model for Phase 1 (461MB, good accuracy/speed balance)
+- [Phase 01-02]: Default to CPU with int8 quantization (simplest, works everywhere)
 
 ### Pending Todos
 
@@ -60,7 +63,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 01-01-PLAN.md
+Stopped at: Completed 01-02-PLAN.md (core transcription pipeline)
 Resume file: None
 
 ---
