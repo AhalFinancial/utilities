@@ -12,6 +12,10 @@ dependencies = [
     "faster-whisper>=1.2.1",
     "ffmpeg-python>=0.2.0",
     "click>=8.1.0",
+    "pydub>=0.25.1",
+    "tqdm>=4.67.0",
+    "soundfile>=0.12.1",
+    "audioop-lts>=0.2.0",
 ]
 
 [project.scripts]
