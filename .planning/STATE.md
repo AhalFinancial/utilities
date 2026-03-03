@@ -11,17 +11,17 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 
 Phase: 4 of 4 (Polish & Resilience)
 Plan: 2 of 2 in current phase
-Status: In Progress
-Last activity: 2026-03-03 — Completed 04-01-PLAN.md (Error handling and resilience foundation)
+Status: Complete
+Last activity: 2026-03-03 — Completed 04-02-PLAN.md (Checkpoint resume and error display)
 
-Progress: [█████████░] 67%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 2.8 minutes
-- Total execution time: 0.4 hours
+- Total plans completed: 9
+- Average duration: 2.9 minutes
+- Total execution time: 0.43 hours
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [█████████░] 67%
 | 01 | 3 | 8 min | 3 min |
 | 02 | 3 | 7 min | 2.3 min |
 | 03 | 2 | 6 min | 3 min |
-| 04 | 1 | 4 min | 4 min |
+| 04 | 2 | 7.7 min | 3.9 min |
 
 **Recent Plans:**
 
@@ -40,6 +40,7 @@ Progress: [█████████░] 67%
 | Phase 03 P01 | 4 min | 2 tasks | 3 files | 2026-03-03 |
 | Phase 03 P02 | 2 min | 2 tasks | 2 files | 2026-03-02 |
 | Phase 04 P01 | 4 min | 2 tasks | 6 files | 2026-03-03 |
+| Phase 04 P02 | 3.7 min | 2 tasks | 3 files | 2026-03-03 |
 
 ## Accumulated Context
 
@@ -86,6 +87,10 @@ Recent decisions affecting current work:
 - [Phase 04-01]: Fixed 2s retry for FFmpeg operations (I/O failures usually permanent)
 - [Phase 04-01]: Only retry transient errors (rate limit, connection, timeout) not auth/validation failures
 - [Phase 04-01]: FFmpeg probe validation added for file integrity and audio stream detection before processing
+- [Phase 04-02]: MD5 hash of first+last 64KB for fast file integrity checking (handles small files by hashing entire content)
+- [Phase 04-02]: Atomic checkpoint writes via temp file + os.replace() prevents partial checkpoint corruption
+- [Phase 04-02]: Resume asks user in interactive mode, auto-resumes in quiet mode for automation-friendly behavior
+- [Phase 04-02]: Checkpoint cleanup on success, kept on failure to enable retry
 
 ### Pending Todos
 
@@ -98,7 +103,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 04-01-PLAN.md (Error handling and resilience foundation)
+Stopped at: Completed 04-02-PLAN.md (Checkpoint resume and error display)
 Resume file: None
 
 ---
