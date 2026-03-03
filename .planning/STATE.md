@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Reliable transcription and useful summaries from meeting recordings — drop a video, get a readable text file
-**Current focus:** Phase 3 - Summarization
+**Current focus:** Phase 4 - Polish & Resilience
 
 ## Current Position
 
-Phase: 3 of 4 (Summarization)
+Phase: 4 of 4 (Polish & Resilience)
 Plan: 2 of 2 in current phase
-Status: Completed
-Last activity: 2026-03-02 — Completed 03-02-PLAN.md (CLI integration)
+Status: In Progress
+Last activity: 2026-03-03 — Completed 04-01-PLAN.md (Error handling and resilience foundation)
 
-Progress: [████████░░] 58%
+Progress: [█████████░] 67%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 2.6 minutes
-- Total execution time: 0.3 hours
+- Total plans completed: 8
+- Average duration: 2.8 minutes
+- Total execution time: 0.4 hours
 
 **By Phase:**
 
@@ -30,15 +30,16 @@ Progress: [████████░░] 58%
 | 01 | 3 | 8 min | 3 min |
 | 02 | 3 | 7 min | 2.3 min |
 | 03 | 2 | 6 min | 3 min |
+| 04 | 1 | 4 min | 4 min |
 
 **Recent Plans:**
 
 | Plan | Duration | Tasks | Files | Completed |
 |------|----------|-------|-------|-----------|
-| Phase 02 P02 | 2 min | 2 tasks | 2 files | 2026-03-03 |
 | Phase 02 P03 | 2 min | 2 tasks | 3 files | 2026-03-02 |
 | Phase 03 P01 | 4 min | 2 tasks | 3 files | 2026-03-03 |
 | Phase 03 P02 | 2 min | 2 tasks | 2 files | 2026-03-02 |
+| Phase 04 P01 | 4 min | 2 tasks | 6 files | 2026-03-03 |
 
 ## Accumulated Context
 
@@ -81,6 +82,10 @@ Recent decisions affecting current work:
 - [Phase 03-02]: Fail fast: Check API key before transcription to avoid wasted work
 - [Phase 03-02]: Auto-detect summary style when --style not specified using keyword heuristics
 - [Phase 03-02]: Graceful fallback to transcript-only on summarization failure or user cancellation
+- [Phase 04-01]: Use tenacity for retry logic with exponential backoff (4-60s, 5 attempts) for API calls
+- [Phase 04-01]: Fixed 2s retry for FFmpeg operations (I/O failures usually permanent)
+- [Phase 04-01]: Only retry transient errors (rate limit, connection, timeout) not auth/validation failures
+- [Phase 04-01]: FFmpeg probe validation added for file integrity and audio stream detection before processing
 
 ### Pending Todos
 
@@ -92,8 +97,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-02
-Stopped at: Completed 03-02-PLAN.md (CLI integration)
+Last session: 2026-03-03
+Stopped at: Completed 04-01-PLAN.md (Error handling and resilience foundation)
 Resume file: None
 
 ---
