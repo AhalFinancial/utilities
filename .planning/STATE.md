@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Reliable transcription and useful summaries from meeting recordings — drop a video, get a readable text file
-**Current focus:** Phase 2 - Production Transcription
+**Current focus:** Phase 3 - Summarization
 
 ## Current Position
 
-Phase: 2 of 4 (Production Transcription)
-Plan: 3 of 3 in current phase
+Phase: 3 of 4 (Summarization)
+Plan: 1 of 2 in current phase
 Status: Completed
-Last activity: 2026-03-02 — Completed 02-03-PLAN.md (parallel processing and CLI integration)
+Last activity: 2026-03-03 — Completed 03-01-PLAN.md (core summarization engine)
 
-Progress: [██████░░░░] 42%
+Progress: [███████░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 2.6 minutes
-- Total execution time: 0.2 hours
+- Total plans completed: 6
+- Average duration: 2.7 minutes
+- Total execution time: 0.3 hours
 
 **By Phase:**
 
@@ -29,15 +29,16 @@ Progress: [██████░░░░] 42%
 |-------|-------|-------|----------|
 | 01 | 3 | 8 min | 3 min |
 | 02 | 3 | 7 min | 2.3 min |
+| 03 | 1 | 4 min | 4 min |
 
 **Recent Plans:**
 
 | Plan | Duration | Tasks | Files | Completed |
 |------|----------|-------|-------|-----------|
-| Phase 01 P03 | 2 min | 2 tasks | 1 files | 2026-03-02 |
 | Phase 02 P01 | 3 min | 2 tasks | 2 files | 2026-03-03 |
 | Phase 02 P02 | 2 min | 2 tasks | 2 files | 2026-03-03 |
 | Phase 02 P03 | 2 min | 2 tasks | 3 files | 2026-03-02 |
+| Phase 03 P01 | 4 min | 2 tasks | 3 files | 2026-03-03 |
 
 ## Accumulated Context
 
@@ -72,6 +73,10 @@ Recent decisions affecting current work:
 - [Phase 02-03]: Conservative max_workers: min(cpu_count, 4) for typical 8GB machines
 - [Phase 02-03]: Two-stage progress display (extraction done, then transcription bar)
 - [Phase 02-03]: Smart chunking - short videos skip chunking entirely
+- [Phase 03-01]: Use Claude Sonnet 4.6 for summarization (balanced cost/quality at $3/M input, $15/M output)
+- [Phase 03-01]: Set quality gate threshold at 40% confidence from Phase 2 transcription
+- [Phase 03-01]: Use map-reduce strategy for transcripts >150K tokens (split at 50K token chunks)
+- [Phase 03-01]: Auto-detect summary style using keyword heuristics (action items vs executive vs detailed)
 
 ### Pending Todos
 
@@ -83,8 +88,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-02
-Stopped at: Completed 02-03-PLAN.md (parallel processing and CLI integration) - Phase 2 complete
+Last session: 2026-03-03
+Stopped at: Completed 03-01-PLAN.md (core summarization engine)
 Resume file: None
 
 ---
