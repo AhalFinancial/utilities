@@ -20,6 +20,15 @@ from transcribe.parallel import transcribe_chunks_parallel
 from transcribe.progress import ProgressDisplay
 from transcribe.summarizer import check_api_key, summarize_with_quality_gate
 from transcribe.prompts import detect_summary_style
+from transcribe.errors import TranscriptionError, APIKeyMissingError
+from transcribe.checkpoint import (
+    get_checkpoint_path,
+    load_checkpoint,
+    can_resume_from_checkpoint,
+    delete_checkpoint,
+    calculate_file_hash,
+    TranscriptionCheckpoint
+)
 
 
 @click.command()
@@ -28,7 +37,8 @@ from transcribe.prompts import detect_summary_style
 @click.option('--force', is_flag=True, help='Overwrite existing output without asking')
 @click.option('--no-summary', is_flag=True, help='Skip summarization, produce transcript only')
 @click.option('--style', type=click.Choice(['executive', 'action-items', 'detailed'], case_sensitive=False), default=None, help='Summary style (default: auto-detect)')
-def main(video_file, quiet, force, no_summary, style):
+@click.option('--no-resume', is_flag=True, help='Start fresh even if checkpoint exists')
+def main(video_file, quiet, force, no_summary, style, no_resume):
     """
     Transcribe and summarize a video file.
 
@@ -54,25 +64,51 @@ def main(video_file, quiet, force, no_summary, style):
         video_path = Path(video_file)
 
         # Early validation (fail fast pattern)
-        try:
-            validate_environment()
-        except RuntimeError as e:
-            click.echo(f"Error: {e}", err=True)
-            sys.exit(1)
-
-        try:
-            validate_video_file(video_path)
-        except (FileNotFoundError, ValueError) as e:
-            click.echo(f"Error: {e}", err=True)
-            sys.exit(1)
+        validate_environment()
+        validate_video_file(video_path)
 
         # Check API key if summarization enabled (fail fast before transcription)
         if not no_summary:
-            try:
-                check_api_key()
-            except RuntimeError as e:
-                click.echo(f"Error: {e}", err=True)
-                sys.exit(1)
+            check_api_key()
+
+        # Resume detection: check for checkpoint before starting
+        checkpoint_path = get_checkpoint_path(video_path)
+        resume_checkpoint = None
+
+        if not no_resume and checkpoint_path.exists():
+            loaded_checkpoint = load_checkpoint(checkpoint_path)
+
+            if loaded_checkpoint and can_resume_from_checkpoint(loaded_checkpoint, video_path):
+                # Valid checkpoint found
+                completed_count = len(loaded_checkpoint.completed_chunks)
+                total_count = loaded_checkpoint.total_chunks
+
+                click.echo(
+                    f"Found checkpoint: {completed_count}/{total_count} chunks completed.",
+                    err=False
+                )
+
+                # Ask user if they want to resume (auto-resume in quiet mode)
+                if quiet or click.confirm("Resume from checkpoint?", default=True):
+                    resume_checkpoint = loaded_checkpoint
+                    if not quiet:
+                        click.echo("Resuming from checkpoint...")
+                else:
+                    # User declined - delete checkpoint and start fresh
+                    delete_checkpoint(checkpoint_path)
+                    if not quiet:
+                        click.echo("Starting fresh...")
+
+            elif loaded_checkpoint:
+                # Checkpoint exists but is invalid (hash mismatch)
+                click.echo(
+                    click.style(
+                        "Warning: Checkpoint found but video file has changed. Starting fresh.",
+                        fg='yellow'
+                    ),
+                    err=True
+                )
+                delete_checkpoint(checkpoint_path)
 
         # Construct output path based on whether summary will be included
         if no_summary:
@@ -130,12 +166,20 @@ def main(video_file, quiet, force, no_summary, style):
 
             else:
                 # Stage 4b: Parallel path for long videos (multiple chunks)
+                # Prepare checkpoint parameters
+                completed_chunk_transcripts = None
+                if resume_checkpoint:
+                    completed_chunk_transcripts = resume_checkpoint.chunk_transcripts
+
                 progress.start_transcription(total_chunks=len(chunks))
                 segments, info_dict, all_segment_data = transcribe_chunks_parallel(
                     chunks,
                     model_size="small",
                     language=language,
-                    on_chunk_complete=lambda cid: progress.update_transcription(cid)
+                    on_chunk_complete=lambda cid: progress.update_transcription(cid),
+                    checkpoint_path=checkpoint_path,
+                    video_path=video_path,
+                    completed_chunks=completed_chunk_transcripts
                 )
                 progress.finish_transcription()
 
@@ -147,12 +191,18 @@ def main(video_file, quiet, force, no_summary, style):
                     if not quiet:
                         click.echo(f"Low confidence ({confidence_pct:.0f}%), retrying with medium model...")
 
+                    # Clear checkpoint for retry with different model
+                    delete_checkpoint(checkpoint_path)
+
                     progress.start_transcription(total_chunks=len(chunks))
                     segments, info_dict, all_segment_data = transcribe_chunks_parallel(
                         chunks,
                         model_size="medium",
                         language=language,
-                        on_chunk_complete=lambda cid: progress.update_transcription(cid)
+                        on_chunk_complete=lambda cid: progress.update_transcription(cid),
+                        checkpoint_path=checkpoint_path,
+                        video_path=video_path,
+                        completed_chunks=None  # Start fresh with new model
                     )
                     progress.finish_transcription()
 
@@ -248,6 +298,9 @@ def main(video_file, quiet, force, no_summary, style):
             if confidence_pct and confidence_pct < 50:
                 progress.warn(f"Low confidence detected ({confidence_pct:.0f}%)")
 
+            # Delete checkpoint on successful completion
+            delete_checkpoint(checkpoint_path)
+
             # Success message
             if not quiet:
                 # Determine if summary was included in output
@@ -266,23 +319,16 @@ def main(video_file, quiet, force, no_summary, style):
             if chunk_temp_dir:
                 cleanup_chunks(chunk_temp_dir)
 
-    except RuntimeError as e:
-        # Known runtime errors (FFmpeg failures, no audio, etc.)
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
-    except ValueError as e:
-        # Known value errors (no speech detected, invalid input)
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
-    except FileNotFoundError as e:
-        # File not found during processing
-        click.echo(f"Error: {e}", err=True)
+    except TranscriptionError as e:
+        # Custom transcription errors with formatted display
+        e.display()
         sys.exit(1)
     except Exception as e:
-        # Unexpected errors
+        # Unexpected errors - provide generic guidance
+        click.echo(click.style("Error: ", fg='red', bold=True) + str(e), err=True)
         click.echo(
-            f"Unexpected error: {e}\n"
-            "Please check that FFmpeg is installed and the video file is valid.",
+            click.style("Suggestion: ", fg='yellow') +
+            "Check that FFmpeg is installed and the video file is valid.",
             err=True
         )
         sys.exit(1)
