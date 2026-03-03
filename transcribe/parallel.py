@@ -6,13 +6,20 @@ with timestamp adjustment and overlap deduplication.
 
 import logging
 import os
+import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple, Callable, Optional
+from typing import List, Tuple, Callable, Optional, Dict
 
 from transcribe.transcriber import Transcriber
 from transcribe.chunker import deduplicate_overlap
+from transcribe.checkpoint import (
+    save_checkpoint as save_checkpoint_to_disk,
+    TranscriptionCheckpoint,
+    get_checkpoint_path,
+    calculate_file_hash
+)
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +107,10 @@ def transcribe_chunks_parallel(
     model_size: str = "small",
     language: Optional[str] = None,
     max_workers: Optional[int] = None,
-    on_chunk_complete: Optional[Callable[[int], None]] = None
+    on_chunk_complete: Optional[Callable[[int], None]] = None,
+    checkpoint_path: Optional[Path] = None,
+    video_path: Optional[Path] = None,
+    completed_chunks: Optional[Dict[int, str]] = None
 ) -> Tuple[List[MergedSegment], dict, List[Tuple[int, List, dict]]]:
     """
     Transcribe multiple chunks in parallel with ProcessPoolExecutor.
@@ -109,12 +119,18 @@ def transcribe_chunks_parallel(
     deduplicates overlapping text between consecutive chunks, and returns
     merged segments in correct order.
 
+    Supports resume from checkpoint: already-completed chunks are skipped,
+    and checkpoint is saved after each chunk completion.
+
     Args:
         chunks: List of (chunk_id, chunk_path, start_time_offset, duration) tuples
         model_size: Whisper model size (default "small")
         language: Optional language code (None = auto-detect)
         max_workers: Number of worker processes (None = auto-calculate)
         on_chunk_complete: Optional callback(chunk_id) called when chunk finishes
+        checkpoint_path: Optional path to save checkpoints (enables resume)
+        video_path: Optional original video path (for checkpoint hash validation)
+        completed_chunks: Optional dict of already-completed chunk transcripts (from resume)
 
     Returns:
         Tuple of (merged_segments, info, all_segment_data) where:
@@ -125,6 +141,10 @@ def transcribe_chunks_parallel(
     if not chunks:
         return ([], {}, [])
 
+    # Initialize tracking structures
+    completed_chunks = completed_chunks or {}
+    chunk_transcripts = dict(completed_chunks)  # Copy for tracking new completions
+
     # Calculate max_workers if not provided
     # Use min(cpu_count, estimated_safe_parallel_tasks)
     # Assume 2GB per worker, 8GB available by default
@@ -134,14 +154,21 @@ def transcribe_chunks_parallel(
         max_workers = min(cpu_count, max(1, 4))
 
     logger.info(f"Starting parallel transcription with {max_workers} workers")
+    if completed_chunks:
+        logger.info(f"Resuming from checkpoint: {len(completed_chunks)} chunks already completed")
 
-    # Submit all chunks to executor
+    # Submit all chunks to executor (skip already-completed ones)
     futures_to_chunk = {}
     all_chunk_results = []
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all tasks
+        # Submit tasks only for incomplete chunks
         for chunk_id, chunk_path, start_offset, duration in chunks:
+            if chunk_id in completed_chunks:
+                # Skip this chunk - already completed
+                logger.info(f"Skipping chunk {chunk_id} (already completed)")
+                continue
+
             future = executor.submit(
                 _transcribe_single_chunk,
                 str(chunk_path),
@@ -163,6 +190,25 @@ def transcribe_chunks_parallel(
                 # Store result
                 all_chunk_results.append((chunk_id, adjusted_segments, info_dict))
 
+                # Store transcript text for checkpoint
+                chunk_text = " ".join(seg.text for seg in adjusted_segments)
+                chunk_transcripts[chunk_id] = chunk_text
+
+                # Save checkpoint after each chunk completion (if enabled)
+                if checkpoint_path and video_path:
+                    checkpoint = TranscriptionCheckpoint(
+                        video_path=str(video_path.resolve()),
+                        video_hash=calculate_file_hash(video_path),
+                        total_chunks=len(chunks),
+                        completed_chunks=sorted(chunk_transcripts.keys()),
+                        chunk_transcripts=chunk_transcripts,
+                        language=language,
+                        model_size=model_size,
+                        timestamp=time.time()
+                    )
+                    save_checkpoint_to_disk(checkpoint, checkpoint_path)
+                    logger.info(f"Checkpoint saved: {len(chunk_transcripts)}/{len(chunks)} chunks")
+
                 # Notify progress callback
                 if on_chunk_complete:
                     on_chunk_complete(chunk_id)
@@ -175,6 +221,28 @@ def transcribe_chunks_parallel(
             except Exception as e:
                 logger.error(f"Chunk {chunk_id} failed: {e}")
                 raise
+
+    # Add completed chunks back as results (reconstruct from saved transcripts)
+    for chunk_id in completed_chunks.keys():
+        if chunk_id not in [r[0] for r in all_chunk_results]:
+            # Find chunk metadata from original chunks list
+            for cid, cpath, start_offset, duration in chunks:
+                if cid == chunk_id:
+                    # Create placeholder segment from saved transcript
+                    transcript_text = completed_chunks[chunk_id]
+                    placeholder_segment = MergedSegment(
+                        start=start_offset,
+                        end=start_offset + duration,
+                        text=transcript_text,
+                        avg_logprob=-0.5  # Assume decent quality
+                    )
+                    # Add as a single-segment result
+                    all_chunk_results.append((
+                        chunk_id,
+                        [placeholder_segment],
+                        {'language': language, 'duration': duration, 'language_probability': 0.95}
+                    ))
+                    break
 
     # Sort results by chunk_id to maintain order
     all_chunk_results.sort(key=lambda x: x[0])
