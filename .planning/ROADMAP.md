@@ -61,11 +61,11 @@ Plans:
   2. User can choose summary style (executive, action items, or detailed) via CLI flag
   3. Tool skips summarization when transcript quality is detected as low (prevents garbage summaries)
   4. Output file contains both full transcript and summary sections
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [ ] 03-01-PLAN.md — Core summarization engine: prompts, Claude API integration, map-reduce, quality gate
+- [ ] 03-02-PLAN.md — CLI integration: --style/--no-summary flags, output formatting, cost display
 
 ### Phase 4: Polish & Resilience
 **Goal**: Production-ready tool with robust error handling and excellent UX
