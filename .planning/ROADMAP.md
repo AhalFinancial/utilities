@@ -76,11 +76,11 @@ Plans:
   2. Tool retries API failures with exponential backoff (no crashes mid-processing)
   3. User can resume interrupted processing of long videos without starting over
   4. Tool validates input files before processing and rejects invalid formats early
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [ ] 04-01-PLAN.md — Custom exceptions, enhanced file validation (FFmpeg probe), and retry logic (tenacity)
+- [ ] 04-02-PLAN.md — Checkpoint-based resume capability and CLI error handling integration
 
 ## Progress
 
