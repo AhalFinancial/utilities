@@ -1,6 +1,6 @@
-"""Claude API-based transcript summarization.
+"""OpenAI GPT-5.1-based transcript summarization.
 
-Provides functions for summarizing transcripts using Claude API with:
+Provides functions for summarizing transcripts using OpenAI API with:
 - API key validation
 - Cost calculation and tracking
 - Semantic chunking for long transcripts
@@ -10,27 +10,27 @@ Provides functions for summarizing transcripts using Claude API with:
 
 import os
 import click
-import anthropic
+from openai import OpenAI
 
 from transcribe.prompts import get_system_prompt
 
 
 def check_api_key() -> str:
-    """Check if ANTHROPIC_API_KEY environment variable is set.
+    """Check if OPENAI_API_KEY environment variable is set.
 
     Returns:
         API key string
 
     Raises:
-        RuntimeError: If ANTHROPIC_API_KEY is not set
+        RuntimeError: If OPENAI_API_KEY is not set
     """
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    api_key = os.getenv("OPENAI_API_KEY")
 
     if not api_key:
         raise RuntimeError(
-            "ANTHROPIC_API_KEY environment variable not set.\n"
-            "Get your API key from: https://console.anthropic.com/settings/keys\n"
-            "Set it with: export ANTHROPIC_API_KEY='your-key-here'"
+            "OPENAI_API_KEY environment variable not set.\n"
+            "Get your API key from: https://platform.openai.com/api-keys\n"
+            "Set it with: export OPENAI_API_KEY='your-key-here'"
         )
 
     return api_key
@@ -39,36 +39,24 @@ def check_api_key() -> str:
 def calculate_cost(
     input_tokens: int,
     output_tokens: int,
-    cache_read_tokens: int = 0,
-    cache_write_tokens: int = 0
 ) -> float:
-    """Calculate Claude API cost for Sonnet 4.6.
+    """Calculate OpenAI API cost for GPT-5.1.
 
     Args:
         input_tokens: Number of input tokens
         output_tokens: Number of output tokens
-        cache_read_tokens: Number of tokens read from cache
-        cache_write_tokens: Number of tokens written to cache
 
     Returns:
         Total cost in USD
 
     Pricing (per million tokens):
-        - Base input: $3
-        - Output: $15
-        - Cache write (5-min TTL): $3.75 (1.25x base)
-        - Cache read: $0.30 (0.1x base)
+        - Input: $1.25
+        - Output: $10.00
     """
-    # Base costs
-    input_cost = input_tokens * 3.0 / 1_000_000
-    output_cost = output_tokens * 15.0 / 1_000_000
+    input_cost = input_tokens * 1.25 / 1_000_000
+    output_cost = output_tokens * 10.0 / 1_000_000
 
-    # Cache costs
-    cache_write_cost = cache_write_tokens * 3.75 / 1_000_000
-    cache_read_cost = cache_read_tokens * 0.30 / 1_000_000
-
-    total = input_cost + output_cost + cache_write_cost + cache_read_cost
-    return total
+    return input_cost + output_cost
 
 
 def split_into_semantic_chunks(text: str, max_tokens: int = 50000) -> list:
@@ -115,7 +103,7 @@ def summarize_transcript(
     style: str,
     language: str = "en"
 ) -> tuple:
-    """Summarize transcript using Claude API.
+    """Summarize transcript using OpenAI API.
 
     Args:
         transcript_text: Full transcript text
@@ -125,17 +113,17 @@ def summarize_transcript(
     Returns:
         Tuple of (summary_text, input_tokens, output_tokens, cost_usd)
     """
-    client = anthropic.Anthropic()  # Reads ANTHROPIC_API_KEY from env automatically
+    client = OpenAI()  # Reads OPENAI_API_KEY from env automatically
 
     # Get style-specific system prompt
     system_prompt = get_system_prompt(style, language)
 
     # Create summary
-    response = client.messages.create(
-        model="claude-sonnet-4-6-20250514",
-        max_tokens=2048,
-        system=system_prompt,
+    response = client.chat.completions.create(
+        model="gpt-5.1",
+        max_completion_tokens=2048,
         messages=[
+            {"role": "system", "content": system_prompt},
             {
                 "role": "user",
                 "content": f"Please summarize this transcript:\n\n{transcript_text}"
@@ -145,14 +133,14 @@ def summarize_transcript(
 
     # Extract usage metrics
     usage = response.usage
-    input_tokens = usage.input_tokens
-    output_tokens = usage.output_tokens
+    input_tokens = usage.prompt_tokens
+    output_tokens = usage.completion_tokens
 
     # Calculate cost
     cost_usd = calculate_cost(input_tokens, output_tokens)
 
     # Extract summary text
-    summary_text = response.content[0].text
+    summary_text = response.choices[0].message.content
 
     return (summary_text, input_tokens, output_tokens, cost_usd)
 
@@ -164,7 +152,7 @@ def summarize_long_transcript(
 ) -> tuple:
     """Summarize long transcript using map-reduce strategy.
 
-    For transcripts under 150K tokens, delegates to summarize_transcript().
+    For transcripts under 150K tokens (estimated), delegates to summarize_transcript().
     For longer transcripts, splits into chunks, summarizes each, then merges.
 
     Args:
@@ -175,21 +163,17 @@ def summarize_long_transcript(
     Returns:
         Tuple of (summary_text, total_input_tokens, total_output_tokens, cost_usd)
     """
-    client = anthropic.Anthropic()
-
-    # Step 1: Check token count
-    token_count_response = client.messages.count_tokens(
-        model="claude-sonnet-4-6-20250514",
-        messages=[{"role": "user", "content": transcript_text}]
-    )
-    total_tokens = token_count_response.input_tokens
+    # Step 1: Estimate token count (1 token ≈ 4 characters)
+    estimated_tokens = len(transcript_text) // 4
 
     # If under 150K tokens, process directly
-    if total_tokens < 150_000:
+    if estimated_tokens < 150_000:
         return summarize_transcript(transcript_text, style, language)
 
     # Step 2: Split into semantic chunks (~50K tokens each)
     chunks = split_into_semantic_chunks(transcript_text, max_tokens=50_000)
+
+    client = OpenAI()
 
     # Step 3: Map - Summarize each chunk
     chunk_summaries = []
@@ -197,15 +181,17 @@ def summarize_long_transcript(
     total_output = 0
 
     for i, chunk in enumerate(chunks):
-        response = client.messages.create(
-            model="claude-sonnet-4-6-20250514",
-            max_tokens=1024,
-            system="Summarize this section of a longer transcript. Focus on key points, decisions, and topics.",
-            messages=[{"role": "user", "content": chunk}]
+        response = client.chat.completions.create(
+            model="gpt-5.1",
+            max_completion_tokens=1024,
+            messages=[
+                {"role": "system", "content": "Summarize this section of a longer transcript. Focus on key points, decisions, and topics."},
+                {"role": "user", "content": chunk}
+            ]
         )
-        chunk_summaries.append(response.content[0].text)
-        total_input += response.usage.input_tokens
-        total_output += response.usage.output_tokens
+        chunk_summaries.append(response.choices[0].message.content)
+        total_input += response.usage.prompt_tokens
+        total_output += response.usage.completion_tokens
 
     # Step 4: Reduce - Merge chunk summaries into final summary
     merged_summaries = "\n\n".join([
@@ -213,23 +199,25 @@ def summarize_long_transcript(
         for i, summary in enumerate(chunk_summaries)
     ])
 
-    final_response = client.messages.create(
-        model="claude-sonnet-4-6-20250514",
-        max_tokens=2048,
-        system=get_system_prompt(style, language),
-        messages=[{
-            "role": "user",
-            "content": f"These are summaries of sections from a longer transcript. Create a cohesive {style} summary:\n\n{merged_summaries}"
-        }]
+    final_response = client.chat.completions.create(
+        model="gpt-5.1",
+        max_completion_tokens=2048,
+        messages=[
+            {"role": "system", "content": get_system_prompt(style, language)},
+            {
+                "role": "user",
+                "content": f"These are summaries of sections from a longer transcript. Create a cohesive {style} summary:\n\n{merged_summaries}"
+            }
+        ]
     )
 
-    total_input += final_response.usage.input_tokens
-    total_output += final_response.usage.output_tokens
+    total_input += final_response.usage.prompt_tokens
+    total_output += final_response.usage.completion_tokens
 
     # Calculate total cost
     cost_usd = calculate_cost(total_input, total_output)
 
-    final_summary = final_response.content[0].text
+    final_summary = final_response.choices[0].message.content
 
     return (final_summary, total_input, total_output, cost_usd)
 
