@@ -13,6 +13,8 @@ import click
 from openai import OpenAI
 
 from transcribe.prompts import get_system_prompt
+from transcribe.retry import api_retry
+from transcribe.errors import APIKeyMissingError
 
 
 def check_api_key() -> str:
@@ -22,16 +24,12 @@ def check_api_key() -> str:
         API key string
 
     Raises:
-        RuntimeError: If OPENAI_API_KEY is not set
+        APIKeyMissingError: If OPENAI_API_KEY is not set
     """
     api_key = os.getenv("OPENAI_API_KEY")
 
     if not api_key:
-        raise RuntimeError(
-            "OPENAI_API_KEY environment variable not set.\n"
-            "Get your API key from: https://platform.openai.com/api-keys\n"
-            "Set it with: export OPENAI_API_KEY='your-key-here'"
-        )
+        raise APIKeyMissingError()
 
     return api_key
 
@@ -98,6 +96,7 @@ def split_into_semantic_chunks(text: str, max_tokens: int = 50000) -> list:
     return chunks
 
 
+@api_retry
 def summarize_transcript(
     transcript_text: str,
     style: str,
@@ -163,6 +162,16 @@ def summarize_long_transcript(
     Returns:
         Tuple of (summary_text, total_input_tokens, total_output_tokens, cost_usd)
     """
+    # Helper function for API calls with retry logic
+    @api_retry
+    def _api_call(client, messages, max_tokens):
+        """Make API call with retry logic."""
+        return client.chat.completions.create(
+            model="gpt-5.1",
+            max_completion_tokens=max_tokens,
+            messages=messages
+        )
+
     # Step 1: Estimate token count (1 token ≈ 4 characters)
     estimated_tokens = len(transcript_text) // 4
 
@@ -181,13 +190,13 @@ def summarize_long_transcript(
     total_output = 0
 
     for i, chunk in enumerate(chunks):
-        response = client.chat.completions.create(
-            model="gpt-5.1",
-            max_completion_tokens=1024,
+        response = _api_call(
+            client,
             messages=[
                 {"role": "system", "content": "Summarize this section of a longer transcript. Focus on key points, decisions, and topics."},
                 {"role": "user", "content": chunk}
-            ]
+            ],
+            max_tokens=1024
         )
         chunk_summaries.append(response.choices[0].message.content)
         total_input += response.usage.prompt_tokens
@@ -199,16 +208,16 @@ def summarize_long_transcript(
         for i, summary in enumerate(chunk_summaries)
     ])
 
-    final_response = client.chat.completions.create(
-        model="gpt-5.1",
-        max_completion_tokens=2048,
+    final_response = _api_call(
+        client,
         messages=[
             {"role": "system", "content": get_system_prompt(style, language)},
             {
                 "role": "user",
                 "content": f"These are summaries of sections from a longer transcript. Create a cohesive {style} summary:\n\n{merged_summaries}"
             }
-        ]
+        ],
+        max_tokens=2048
     )
 
     total_input += final_response.usage.prompt_tokens

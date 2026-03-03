@@ -3,7 +3,11 @@
 import ffmpeg
 from pathlib import Path
 
+from transcribe.retry import ffmpeg_retry
+from transcribe.errors import CorruptedFileError, NoAudioStreamError, FileValidationError
 
+
+@ffmpeg_retry
 def extract_audio(video_path: Path, output_path: Path) -> None:
     """
     Extract audio from video file to WAV format.
@@ -16,7 +20,9 @@ def extract_audio(video_path: Path, output_path: Path) -> None:
         output_path: Path for output WAV file
 
     Raises:
-        RuntimeError: If video file is corrupted, has no audio track, or FFmpeg fails
+        CorruptedFileError: If video file is corrupted or unreadable
+        NoAudioStreamError: If video has no audio track
+        FileValidationError: If FFmpeg fails for other reasons
 
     Examples:
         >>> extract_audio(Path("video.mp4"), Path("audio.wav"))
@@ -32,17 +38,11 @@ def extract_audio(video_path: Path, output_path: Path) -> None:
     except ffmpeg.Error as e:
         stderr = e.stderr.decode('utf8')
 
-        # Parse common error patterns and provide user-friendly messages
+        # Parse common error patterns and raise appropriate exceptions
         if 'Invalid data found' in stderr or 'could not find codec' in stderr:
-            raise RuntimeError(
-                f"Could not read {video_path.name} — file may be corrupted"
-            ) from e
+            raise CorruptedFileError(video_path.name) from e
         elif 'Output file is empty' in stderr or 'does not contain any stream' in stderr:
-            raise RuntimeError(
-                f"No audio track found in {video_path.name}"
-            ) from e
+            raise NoAudioStreamError(video_path.name) from e
         else:
             # Unknown FFmpeg error
-            raise RuntimeError(
-                f"FFmpeg error processing {video_path.name}"
-            ) from e
+            raise FileValidationError(video_path.name, stderr) from e
