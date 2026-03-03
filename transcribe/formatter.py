@@ -113,6 +113,116 @@ def merge_segments_to_paragraphs(segments, gap_threshold=2.0):
     return paragraphs
 
 
+def format_notes(
+    summary_text: str,
+    segments,
+    info,
+    video_filename: str,
+    confidence_pct=None,
+    model_name="small",
+    style="executive",
+    cost_usd=None
+) -> str:
+    """
+    Format combined summary+transcript as markdown notes.
+
+    Creates a structured markdown document with:
+    - Summary at top (with style and cost metadata)
+    - Full transcript below with all metadata and timestamps
+
+    Args:
+        summary_text: AI-generated summary text
+        segments: List of transcription segments (from Transcriber)
+        info: TranscriptionInfo object with language, duration, etc.
+        video_filename: Original video filename for metadata
+        confidence_pct: Optional quality score as percentage (0-100)
+        model_name: Model used for transcription (default "small")
+        style: Summary style used (executive, action-items, detailed)
+        cost_usd: Optional cost of summarization in USD
+
+    Returns:
+        Complete markdown notes as string
+
+    Examples:
+        >>> markdown = format_notes(
+        ...     summary_text, segments, info, "meeting.mp4",
+        ...     confidence_pct=85.5, model_name="small",
+        ...     style="executive", cost_usd=0.05
+        ... )
+        >>> with open("meeting_notes.md", "w") as f:
+        ...     f.write(markdown)
+    """
+    lines = []
+
+    # Calculate duration from segments or use info.duration
+    if segments:
+        duration_seconds = segments[-1].end
+    else:
+        duration_seconds = getattr(info, 'duration', 0)
+
+    duration_minutes = int(duration_seconds // 60)
+    duration_secs = int(duration_seconds % 60)
+
+    # Header: Meeting Notes
+    lines.append("# Meeting Notes")
+    lines.append("")
+    lines.append(f"**Source:** {video_filename}")
+    lines.append(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(f"**Duration:** {duration_minutes}m {duration_secs}s")
+    lines.append(
+        f"**Language:** {info.language} "
+        f"(confidence: {info.language_probability:.2%})"
+    )
+    lines.append(f"**Summary style:** {style}")
+
+    # Add cost if provided
+    if cost_usd is not None:
+        lines.append(f"**Summary cost:** ~${cost_usd:.2f}")
+
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    # Summary section
+    lines.append("## Summary")
+    lines.append("")
+    lines.append(summary_text)
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    # Full Transcript section
+    lines.append("## Full Transcript")
+    lines.append("")
+
+    # Calculate word count and reading time
+    all_text = " ".join(seg.text for seg in segments)
+    word_count = len(re.findall(r'\w+', all_text))
+    reading_time_min = max(1, (word_count + 179) // 180)  # Round up
+
+    lines.append(f"**Word count:** {word_count}")
+    lines.append(f"**Reading time:** ~{reading_time_min} min")
+
+    # Add confidence if provided
+    if confidence_pct is not None:
+        lines.append(f"**Confidence:** {confidence_pct:.0f}%")
+
+    lines.append(f"**Model:** faster-whisper ({model_name})")
+    lines.append("")
+
+    # Merge segments into paragraphs at natural pauses
+    paragraphs = merge_segments_to_paragraphs(segments, gap_threshold=2.0)
+
+    # Format paragraphs with adaptive timestamps
+    for start_time, paragraph_text in paragraphs:
+        timestamp = format_timestamp_adaptive(start_time, duration_seconds)
+        lines.append(f"[{timestamp}]")
+        lines.append(paragraph_text)
+        lines.append("")  # Blank line between paragraphs
+
+    return "\n".join(lines)
+
+
 def format_transcript(segments, info, video_filename: str, confidence_pct=None, model_name="small") -> str:
     """
     Format transcription segments as markdown with metadata header.
