@@ -1,6 +1,9 @@
 name: Calendar Sync
 
 on:
+  push:
+    paths:
+      - ".github/workflows/calendar-sync.yml"
   schedule:
     - cron: "0 */2 * * *"
   workflow_dispatch:
