@@ -1,0 +1,22 @@
+calendars:
+  - id: eduardo@ahalfinancial.com
+    label: AHAL
+    personal: false
+    # Service account with domain-wide delegation
+
+  - id: eduardo@rutopia.com
+    label: Rutopia
+    personal: false
+    # OAuth (service account limited to read-only)
+
+  - id: eduardo@reurbano.mx
+    label: Reurbano
+    personal: false
+    # OAuth (no service account available)
+
+  - id: eduardomaass@gmail.com
+    label: Personal
+    personal: true
+    # Service account
+
+sync_window_days: 14
