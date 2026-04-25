@@ -21,3 +21,6 @@ venv/
 # Local secrets
 .env
 *.local
+
+# Calendar Sync token cache
+.sync-cache/
