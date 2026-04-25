@@ -27,10 +27,9 @@ DEFAULT_CACHE_DIR = Path.cwd() / ".sync-cache"
 # Per-calendar credential mappings
 CRED_MAP = {
     "ahal": {
-        "type": "service_account_delegated",
-        "env": "GOOGLE_SA_AHAL",
-        "file": "sa-ahal.json",
-        "subject": "eduardo@ahalfinancial.com",
+        "type": "oauth",
+        "env": "GOOGLE_OAUTH_AHAL",
+        "file": "oauth-ahal.json",
     },
     "rutopia": {
         "type": "oauth",
@@ -43,9 +42,9 @@ CRED_MAP = {
         "file": "oauth-reurbano.json",
     },
     "personal": {
-        "type": "service_account",
-        "env": "GOOGLE_SA_PERSONAL",
-        "file": "sa-personal.json",
+        "type": "oauth",
+        "env": "GOOGLE_OAUTH_PERSONAL",
+        "file": "oauth-personal.json",
     },
 }
 

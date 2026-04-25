@@ -28,10 +28,10 @@ jobs:
 
       - name: Run calendar sync
         env:
-          GOOGLE_SA_AHAL: ${{ secrets.GOOGLE_SA_AHAL }}
+          GOOGLE_OAUTH_AHAL: ${{ secrets.GOOGLE_OAUTH_AHAL }}
           GOOGLE_OAUTH_RUTOPIA: ${{ secrets.GOOGLE_OAUTH_RUTOPIA }}
           GOOGLE_OAUTH_REURBANO: ${{ secrets.GOOGLE_OAUTH_REURBANO }}
-          GOOGLE_SA_PERSONAL: ${{ secrets.GOOGLE_SA_PERSONAL }}
+          GOOGLE_OAUTH_PERSONAL: ${{ secrets.GOOGLE_OAUTH_PERSONAL }}
         run: python calendarsync/sync.py
 
       - name: Save syncToken cache

@@ -22,6 +22,8 @@ CREDS_DIR = SCRIPT_DIR / "credentials"
 CLIENT_FILES = {
     "reurbano": "oauth-reurbano-client.json",
     "rutopia": "oauth-rutopia-client.json",
+    "ahal": "oauth-ahal-client.json",
+    "personal": "oauth-personal-client.json",
 }
 
 
