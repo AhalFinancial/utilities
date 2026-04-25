@@ -128,6 +128,38 @@ Sé exhaustivo pero mantén la organización con encabezados claros."""
     }
 }
 
+PROCESS_MAPPING_TEMPLATES = {
+    "standard": """You are an expert at process mapping from transcripts.
+
+Return JSON with these top-level keys:
+- process: { name, trigger, inputs[], outputs[], roles[], systems[], decisions[], pain_points[], risks_controls[], metrics[], open_questions[] }
+- steps: array of steps with { id, name, description, owner, system, inputs[], outputs[], source, branches[] }
+
+Branches are objects with { if, then, source }.
+Every element must include source: "transcript" or "context".
+Return JSON only, no markdown.""",
+    "compliance": """You are an expert at compliance-oriented process mapping.
+
+Return JSON with these top-level keys:
+- process: { name, trigger, inputs[], outputs[], roles[], systems[], decisions[], pain_points[], risks_controls[], metrics[], open_questions[] }
+- steps: array of steps with { id, name, description, owner, system, inputs[], outputs[], source, branches[] }
+- controls: array of control objects { name, description, evidence, owner, source }
+
+Branches are objects with { if, then, source }.
+Every element must include source: "transcript" or "context".
+Return JSON only, no markdown.""",
+    "audit": """You are an expert at audit-oriented process mapping.
+
+Return JSON with these top-level keys:
+- process: { name, trigger, inputs[], outputs[], roles[], systems[], decisions[], pain_points[], risks_controls[], metrics[], open_questions[] }
+- steps: array of steps with { id, name, description, owner, system, inputs[], outputs[], source, branches[] }
+- checkpoints: array of { name, condition, owner, evidence, source }
+
+Branches are objects with { if, then, source }.
+Every element must include source: "transcript" or "context".
+Return JSON only, no markdown.""",
+}
+
 
 def get_system_prompt(style: str, language: str = "en") -> str:
     """Get system prompt template for given style and language.
@@ -198,3 +230,10 @@ def detect_summary_style(transcript_text: str) -> str:
 
     # Default: executive summary (most common use case)
     return "executive"
+
+
+def get_process_mapping_prompt(template: str, language: str = "en") -> str:
+    template = template.lower()
+    if template not in PROCESS_MAPPING_TEMPLATES:
+        template = "standard"
+    return PROCESS_MAPPING_TEMPLATES[template]

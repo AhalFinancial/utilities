@@ -36,6 +36,7 @@ class MergedSegment:
     end: float
     text: str
     avg_logprob: float
+    words: Optional[List[dict]] = None
 
 
 def _transcribe_single_chunk(chunk_path: str, model_size: str, language: Optional[str]) -> Tuple[List, dict]:
@@ -64,7 +65,8 @@ def _transcribe_single_chunk(chunk_path: str, model_size: str, language: Optiona
     segments, info = transcriber.transcribe(
         Path(chunk_path),
         language=language,
-        vad_filter=True
+        vad_filter=True,
+        word_timestamps=True
     )
 
     # Convert info to dict for serialization
@@ -91,11 +93,30 @@ def _adjust_timestamps(segments: List, offset: float) -> List[MergedSegment]:
     adjusted = []
 
     for seg in segments:
+        adjusted_words = None
+        if hasattr(seg, "words") and seg.words:
+            adjusted_words = []
+            for w in seg.words:
+                if hasattr(w, "word"):
+                    adjusted_words.append({
+                        "word": w.word,
+                        "start": w.start + offset,
+                        "end": w.end + offset,
+                        "probability": getattr(w, "probability", None),
+                    })
+                elif isinstance(w, dict):
+                    adjusted_words.append({
+                        "word": w.get("word"),
+                        "start": w.get("start", 0) + offset,
+                        "end": w.get("end", 0) + offset,
+                        "probability": w.get("probability"),
+                    })
         adjusted_seg = MergedSegment(
             start=seg.start + offset,
             end=seg.end + offset,
             text=seg.text,
-            avg_logprob=seg.avg_logprob
+            avg_logprob=seg.avg_logprob,
+            words=adjusted_words
         )
         adjusted.append(adjusted_seg)
 

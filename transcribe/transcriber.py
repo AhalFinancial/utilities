@@ -49,7 +49,7 @@ class Transcriber:
             )
         return self._model
 
-    def transcribe(self, audio_path: Path, language=None, vad_filter=True):
+    def transcribe(self, audio_path: Path, language=None, vad_filter=True, word_timestamps=False):
         """
         Transcribe audio file to text with timestamps.
 
@@ -75,7 +75,7 @@ class Transcriber:
         segments, info = self.model.transcribe(
             str(audio_path),
             beam_size=5,
-            word_timestamps=False,  # Segment-level timestamps only for Phase 1
+            word_timestamps=word_timestamps,
             language=language,
             vad_filter=vad_filter,
             vad_parameters=dict(min_silence_duration_ms=500)
@@ -157,7 +157,7 @@ class Transcriber:
 
         return (is_acceptable, confidence_pct, avg_logprob)
 
-    def transcribe_with_quality(self, audio_path: Path, language=None):
+    def transcribe_with_quality(self, audio_path: Path, language=None, word_timestamps=False):
         """
         Transcribe with quality validation and auto-upgrade to better model.
 
@@ -182,7 +182,7 @@ class Transcriber:
             >>> print(f"Transcription quality: {confidence:.0f}%")
         """
         # Initial transcription
-        segments, info = self.transcribe(audio_path, language=language)
+        segments, info = self.transcribe(audio_path, language=language, word_timestamps=word_timestamps)
 
         # Validate quality
         is_acceptable, confidence_pct, avg_logprob = self.validate_quality(segments)
@@ -201,7 +201,7 @@ class Transcriber:
             self.model_size = "medium"  # Update size for tracking
 
             # Re-transcribe
-            segments, info = self.transcribe(audio_path, language=language)
+            segments, info = self.transcribe(audio_path, language=language, word_timestamps=word_timestamps)
 
             # Re-validate
             is_acceptable, confidence_pct, avg_logprob = self.validate_quality(segments)

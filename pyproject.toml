@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "transcribe-tool"
-version = "0.1.0"
-description = "CLI tool for transcribing video to text using faster-whisper"
+version = "0.2.0"
+description = "CLI for transcribing and summarizing video/audio with faster-whisper, with live recording and PDF export"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
@@ -20,8 +20,14 @@ dependencies = [
     "tenacity>=9.0.0",
 ]
 
+[project.optional-dependencies]
+pdf = ["markdown>=3.5", "weasyprint>=60.0"]
+record = ["sounddevice>=0.4"]
+dev = ["pytest>=7.0.0"]
+
 [project.scripts]
 transcribe = "transcribe.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["transcribe"]
+exclude = ["transcribe/tests/**"]

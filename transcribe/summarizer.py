@@ -9,12 +9,46 @@ Provides functions for summarizing transcripts using OpenAI API with:
 """
 
 import os
+from pathlib import Path
 import click
 from openai import OpenAI
 
 from transcribe.prompts import get_system_prompt
 from transcribe.retry import api_retry
 from transcribe.errors import APIKeyMissingError
+
+
+def _parse_env_file(path: Path) -> dict:
+    data = {}
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key:
+                data[key] = value
+    except Exception:
+        return {}
+    return data
+
+
+def _load_api_key_from_env_files() -> str:
+    candidates = [
+        Path.cwd() / ".env",
+        Path.home() / ".env",
+        Path.home() / "Utilities" / "transcribe" / ".env",
+    ]
+    for path in candidates:
+        if path.exists():
+            values = _parse_env_file(path)
+            api_key = values.get("OPENAI_API_KEY")
+            if api_key:
+                os.environ.setdefault("OPENAI_API_KEY", api_key)
+                return api_key
+    return ""
 
 
 def check_api_key() -> str:
@@ -27,6 +61,8 @@ def check_api_key() -> str:
         APIKeyMissingError: If OPENAI_API_KEY is not set
     """
     api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        api_key = _load_api_key_from_env_files()
 
     if not api_key:
         raise APIKeyMissingError()

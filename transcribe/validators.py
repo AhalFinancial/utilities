@@ -1,7 +1,7 @@
-"""Validation functions for environment and video file checks.
+"""Validation functions for environment and media file checks.
 
 Call validate_environment() at startup to ensure FFmpeg is available.
-Call validate_video_file() before processing each video to verify format.
+Call validate_media_file() before processing each media file to verify format.
 """
 
 import shutil
@@ -17,6 +17,13 @@ from transcribe.errors import (
 )
 
 
+from transcribe.audio_ingest import SUPPORTED_AUDIO_FORMATS
+
+
+VIDEO_FORMATS = {".mp4", ".mkv", ".webm", ".avi"}
+MEDIA_FORMATS = VIDEO_FORMATS | SUPPORTED_AUDIO_FORMATS
+
+
 def validate_environment():
     """Check that FFmpeg is installed and available on system PATH.
 
@@ -27,11 +34,11 @@ def validate_environment():
         raise FFmpegNotFoundError()
 
 
-def validate_video_file(video_path: Path):
-    """Validate that a video file exists and has a supported format.
+def validate_media_file(media_path: Path):
+    """Validate that a video or audio file exists and has a supported format.
 
     Args:
-        video_path: Path to the video file to validate.
+        media_path: Path to the media file to validate.
 
     Raises:
         FileNotFoundError: If the file does not exist.
@@ -44,25 +51,25 @@ def validate_video_file(video_path: Path):
     Returns:
         dict: FFmpeg probe information for the file.
     """
-    if not video_path.exists():
+    if not media_path.exists():
         raise FileNotFoundError(
-            f"Video file not found: {video_path}\n"
+            f"Media file not found: {media_path}\n"
             "Suggestion: Check the file path and ensure the file exists."
         )
 
-    if not video_path.is_file():
-        raise ValueError(f"Path is not a file: {video_path}")
+    if not media_path.is_file():
+        raise ValueError(f"Path is not a file: {media_path}")
 
     # Check extension against supported formats (case-insensitive) - cheap check first
-    supported_formats = {'.mp4', '.mkv', '.webm', '.avi'}
-    file_extension = video_path.suffix.lower()
+    supported_formats = MEDIA_FORMATS
+    file_extension = media_path.suffix.lower()
 
     if file_extension not in supported_formats:
         raise UnsupportedFormatError(file_extension, supported_formats)
 
     # Use FFmpeg probe to validate file integrity and check for audio stream
     try:
-        probe_info = ffmpeg.probe(str(video_path))
+        probe_info = ffmpeg.probe(str(media_path))
 
         # Check for at least one audio stream
         has_audio = any(
@@ -71,7 +78,7 @@ def validate_video_file(video_path: Path):
         )
 
         if not has_audio:
-            raise NoAudioStreamError(video_path.name)
+            raise NoAudioStreamError(media_path.name)
 
         return probe_info
 
@@ -80,7 +87,12 @@ def validate_video_file(video_path: Path):
 
         # Parse common error patterns
         if 'Invalid data' in stderr or 'End of file' in stderr:
-            raise CorruptedFileError(video_path.name) from e
+            raise CorruptedFileError(media_path.name) from e
         else:
             # Generic FFmpeg validation error
-            raise FileValidationError(video_path.name, stderr) from e
+            raise FileValidationError(media_path.name, stderr) from e
+
+
+def validate_video_file(video_path: Path):
+    """Legacy helper that forwards to validate_media_file (video + audio)."""
+    return validate_media_file(video_path)
