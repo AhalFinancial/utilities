@@ -8,6 +8,7 @@ pytest_basetemp/
 tmp_pytest/
 temp_pytest_base/
 .pytest_tmp/
+tmp_test/
 
 # Virtualenvs
 .venv/
@@ -20,6 +21,3 @@ venv/
 # Local secrets
 .env
 *.local
-
-# Codex sandbox leftover (locked ACL, requires admin to delete)
-C Transcribe/

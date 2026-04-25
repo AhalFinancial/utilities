@@ -1,6 +1,6 @@
 import hashlib
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -14,7 +14,7 @@ def slugify(value: str, max_len: int = 40) -> str:
 
 
 def now_timestamp() -> str:
-    return datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
 
 
 def year_month_from_timestamp(ts: str) -> str:
