@@ -1,66 +1,99 @@
-# transcribe-tool
+# utilities
 
-CLI tool for transcribing video to text using faster-whisper
+Internal CLI utilities for AHAL Financial. Two packages:
 
-## Description
+- **`transcribe/`** — video/audio transcription with summarization, live recording, and PDF export
+- **`calendarsync/`** — multi-account Google Calendar sync (cron-driven via GitHub Actions)
 
-Extract audio from video files, transcribe speech to text with accurate recognition. Supports Spanish and English audio with automatic language detection.
+---
 
-## System Requirements
+## transcribe (v0.2.0)
 
-**FFmpeg must be installed on your system before using this tool.**
+CLI for transcribing video/audio to text using `faster-whisper`, with optional GPT summarization, live recording, and PDF export.
 
-### Installation by platform:
+### Features
 
-**macOS:**
-```bash
-brew install ffmpeg
-```
+- Transcribe local video/audio files (MP4, MKV, WebM, AVI, MP3, WAV, M4A, etc.)
+- Live recording from microphone + system audio
+- Auto language detection (Spanish / English)
+- Chunked parallel transcription with checkpoint/resume
+- GPT summarization with multiple styles: `executive`, `action-items`, `detailed`, `process-mapping`
+- External context injection (file, inline text, or directory)
+- Session-based output organized under `sessions/YYYY-MM/<timestamp>-<slug>/`
+- Optional PDF export of the markdown output
 
-**Ubuntu/Debian:**
-```bash
-sudo apt-get update
-sudo apt-get install ffmpeg
-```
+### System requirements
 
-**Windows:**
-1. Download FFmpeg from https://ffmpeg.org/download.html
-2. Extract the archive
-3. Add the `bin` folder to your system PATH
+**FFmpeg** must be installed and on `PATH`.
 
-Verify installation:
-```bash
-ffmpeg -version
-```
+| Platform        | Install                                                                 |
+| --------------- | ----------------------------------------------------------------------- |
+| macOS           | `brew install ffmpeg`                                                   |
+| Ubuntu/Debian   | `sudo apt-get install ffmpeg`                                           |
+| Windows         | Download from https://ffmpeg.org/download.html and add `bin/` to `PATH` |
 
-## Installation
+Verify: `ffmpeg -version`
 
-Install the tool in editable mode:
+For summarization, set `OPENAI_API_KEY` in your environment.
+
+### Installation
 
 ```bash
 pip install -e .
+# Optional extras:
+pip install -e ".[pdf]"     # PDF export (markdown + weasyprint)
+pip install -e ".[record]"  # Live recording (sounddevice)
+pip install -e ".[dev]"     # Test dependencies
 ```
 
-## Usage
+### Usage
 
-Basic usage:
 ```bash
-transcribe video.mp4
+# Transcribe a file (default subcommand)
+transcribe file meeting.mp4
+
+# Transcribe + skip summary
+transcribe file meeting.mp4 --no-summary
+
+# Force a specific summary style
+transcribe file meeting.mp4 --style action-items
+
+# Inject external context (project glossary, attendee list, etc.)
+transcribe file meeting.mp4 --context-file context.md
+
+# Live recording
+transcribe record
+
+# Export PDF alongside markdown
+transcribe file meeting.mp4 --pdf
+
+# Diagnostics
+transcribe check
 ```
 
-## Supported Video Formats
+Run `transcribe --help` for the full option list.
 
-- MP4
-- MKV
-- WebM
-- AVI
+### Output
 
-## Output
+Sessions are stored under `sessions/YYYY-MM/<timestamp>-<slug>/`:
 
-The tool creates a transcript file alongside your video:
-- Input: `meeting.mp4`
-- Output: `meeting_transcript.md`
+- `transcript.md` — full transcription with timestamps
+- `notes.md` — summarization output (style-dependent)
+- `session.json` — metadata (model, cost, schema version, ingest info)
+- `transcript.pdf` / `notes.pdf` — when `--pdf` is set
 
-Output includes:
-- Full transcription with timestamps
-- Metadata (file name, duration, language detected)
+Use `--legacy` to also write outputs next to the source file (pre-v0.2 behavior).
+
+### Tests
+
+```bash
+.venv/Scripts/python -m pytest transcribe/tests/ -x
+```
+
+---
+
+## calendarsync
+
+Syncs busy blockers across multiple Google Calendars (rutopia, ahal, reurbano, personal). OAuth-per-account via `calendarsync/credentials/`. Driven by GitHub Actions on a 30-minute cron.
+
+See `calendarsync/config.yaml` and `calendarsync/sync.py`.

@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+pytest-cache-files-*/
+pytest_basetemp/
+tmp_pytest/
+temp_pytest_base/
+.pytest_tmp/
+tmp_test/
+
+# Virtualenvs
+.venv/
+venv/
+
+# Editor / OS
+.DS_Store
+*.swp
+
+# Local secrets
+.env
+*.local

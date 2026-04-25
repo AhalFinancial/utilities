@@ -144,3 +144,12 @@ class FFmpegNotFoundError(TranscriptionError):
             "       Verify installation: ffmpeg -version"
         )
         super().__init__(message, suggestion)
+
+
+class ProcessMappingError(TranscriptionError):
+    """Error when process-mapping generation fails."""
+
+    def __init__(self, message: str, suggestion: Optional[str] = None):
+        if suggestion is None:
+            suggestion = "Retry the process-mapping run or check OpenAI API usage limits."
+        super().__init__(message, suggestion)
