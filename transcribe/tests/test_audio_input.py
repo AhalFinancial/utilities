@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from transcribe.audio_ingest import ingest_audio
 from transcribe.pipeline.run import run_transcription
 from transcribe.storage import json_store
@@ -11,7 +13,7 @@ def test_ingest_converts_mp3(tmp_path, monkeypatch):
     def fake_extract_audio(input_path, dest_path):
         dest_path.write_bytes(b"wav-data")
 
-    monkeypatch.setattr("audio_ingest.extract_audio", fake_extract_audio)
+    monkeypatch.setattr("transcribe.audio_ingest.extract_audio", fake_extract_audio)
     metadata = ingest_audio(source, out_dir)
 
     assert Path(metadata["ingest_path"]).exists()
@@ -43,8 +45,8 @@ def test_ingest_skips_conversion_for_normalized_wav(tmp_path, monkeypatch):
     def fake_extract_audio(*args, **kwargs):
         called["extract"] = True
 
-    monkeypatch.setattr("audio_ingest.ffmpeg.probe", fake_probe)
-    monkeypatch.setattr("audio_ingest.extract_audio", fake_extract_audio)
+    monkeypatch.setattr("transcribe.audio_ingest.ffmpeg.probe", fake_probe)
+    monkeypatch.setattr("transcribe.audio_ingest.extract_audio", fake_extract_audio)
     metadata = ingest_audio(source, out_dir)
 
     assert metadata["ingest_steps"][0].startswith("copy:")
