@@ -11,11 +11,18 @@ import yaml
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 MANAGED_BY = "calendarsync"
 SCRIPT_DIR = Path(__file__).parent
 CREDS_DIR = SCRIPT_DIR / "credentials"
+
+# Re-baseline (full list) at most every BASELINE_MAX_AGE so the timeMin/timeMax
+# window stays roughly aligned with the configured sync_window_days as time
+# advances. Between baselines, syncToken returns only changed events.
+BASELINE_MAX_AGE = timedelta(hours=24)
+DEFAULT_CACHE_DIR = Path.cwd() / ".sync-cache"
 
 # Per-calendar credential mappings
 CRED_MAP = {
@@ -121,35 +128,78 @@ def get_time_window(days):
     return time_min, time_max
 
 
-def fetch_events(service, calendar_id, time_min, time_max):
-    """Fetch all events from a calendar within the time window."""
+def get_cache_dir():
+    return Path(os.environ.get("CALENDARSYNC_CACHE_DIR") or DEFAULT_CACHE_DIR)
+
+
+def load_token_store():
+    path = get_cache_dir() / "sync_tokens.json"
+    if not path.exists():
+        return {}
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"  Warning: could not read token cache ({e}); starting from baseline.")
+        return {}
+
+
+def save_token_store(store):
+    cache_dir = get_cache_dir()
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    path = cache_dir / "sync_tokens.json"
+    tmp = path.with_suffix(".json.tmp")
+    with open(tmp, "w") as f:
+        json.dump(store, f, indent=2, sort_keys=True)
+    tmp.replace(path)
+
+
+def _list_events(service, calendar_id, time_min, time_max, sync_token):
+    """Single list pass. With sync_token, pulls deltas; otherwise baseline."""
     events = []
     page_token = None
+    next_sync_token = None
     while True:
-        resp = service.events().list(
-            calendarId=calendar_id,
-            timeMin=time_min,
-            timeMax=time_max,
-            singleEvents=True,
-            orderBy="startTime",
-            pageToken=page_token,
-            maxResults=250,
-        ).execute()
-        for event in resp.get("items", []):
-            if event.get("status") == "cancelled":
-                continue
-            start = event.get("start", {})
-            if "dateTime" not in start:
-                continue
-            # Skip blocker events created by this tool to prevent cascading
-            props = event.get("extendedProperties", {}).get("private", {})
-            if props.get("managedBy") == MANAGED_BY:
-                continue
-            events.append(event)
+        kwargs = {
+            "calendarId": calendar_id,
+            "singleEvents": True,
+            "showDeleted": True,
+            "maxResults": 250,
+        }
+        if sync_token:
+            kwargs["syncToken"] = sync_token
+        else:
+            kwargs["timeMin"] = time_min
+            kwargs["timeMax"] = time_max
+        if page_token:
+            kwargs["pageToken"] = page_token
+        resp = service.events().list(**kwargs).execute()
+        events.extend(resp.get("items", []))
         page_token = resp.get("nextPageToken")
         if not page_token:
+            next_sync_token = resp.get("nextSyncToken")
             break
-    return events
+    return events, next_sync_token
+
+
+def fetch_events_delta(service, calendar_id, time_min, time_max, sync_token):
+    """Fetch events incrementally when possible; baseline otherwise.
+
+    Returns (events, new_sync_token, was_baseline). Cancelled events are
+    included so callers can react to deletions. On 410 GONE the syncToken is
+    expired and we transparently re-baseline.
+    """
+    was_baseline = sync_token is None
+    try:
+        events, new_token = _list_events(service, calendar_id, time_min, time_max, sync_token)
+    except HttpError as e:
+        if sync_token and getattr(e, "resp", None) is not None and e.resp.status == 410:
+            print(f"    syncToken expired for {calendar_id}; re-baselining")
+            events, new_token = _list_events(service, calendar_id, time_min, time_max, None)
+            was_baseline = True
+        else:
+            raise
+    return events, new_token, was_baseline
 
 
 def fetch_managed_blockers(service, calendar_id, time_min, time_max):
@@ -219,15 +269,13 @@ def build_blocker_body(source_event, source_cal_id, cal_config):
     }
 
 
-def sync_pair(source_service, target_service, source_cal, target_cal, time_min, time_max):
-    """Sync events from source calendar to target calendar as blockers."""
+def sync_pair(target_service, source_cal, target_cal, source_events, time_min, time_max):
+    """Reconcile a precomputed source delta against blockers on the target."""
     source_id = source_cal["id"]
     target_id = target_cal["id"]
 
-    source_events = fetch_events(source_service, source_id, time_min, time_max)
     existing_blockers = fetch_managed_blockers(target_service, target_id, time_min, time_max)
 
-    # Index existing blockers by source_event_id (for this source calendar)
     blocker_map = {}
     for b in existing_blockers:
         props = b.get("extendedProperties", {}).get("private", {})
@@ -236,21 +284,29 @@ def sync_pair(source_service, target_service, source_cal, target_cal, time_min, 
             if key:
                 blocker_map[key] = b
 
-    source_event_ids = {e["id"] for e in source_events}
     created = updated = deleted = 0
 
-    # DELETE stale blockers
-    for event_id, blocker in blocker_map.items():
-        if event_id not in source_event_ids:
-            target_service.events().delete(
-                calendarId=target_id, eventId=blocker["id"]
-            ).execute()
-            deleted += 1
-
-    # CREATE or UPDATE blockers
     for event in source_events:
-        fingerprint = compute_fingerprint(event)
         existing = blocker_map.get(event["id"])
+
+        if event.get("status") == "cancelled":
+            if existing is not None:
+                target_service.events().delete(
+                    calendarId=target_id, eventId=existing["id"]
+                ).execute()
+                deleted += 1
+            continue
+
+        # Skip all-day events (only date, no dateTime)
+        if "dateTime" not in event.get("start", {}):
+            continue
+
+        # Skip blocker events created by this tool to prevent cascading
+        props = event.get("extendedProperties", {}).get("private", {})
+        if props.get("managedBy") == MANAGED_BY:
+            continue
+
+        fingerprint = compute_fingerprint(event)
 
         if existing is None:
             body = build_blocker_body(event, source_id, source_cal)
@@ -272,13 +328,13 @@ def main():
     config = load_config()
     calendars = config["calendars"]
     time_min, time_max = get_time_window(config.get("sync_window_days", 14))
+    now = datetime.now(timezone.utc)
 
-    print(f"Calendar Sync starting at {datetime.now(timezone.utc).isoformat()}")
+    print(f"Calendar Sync starting at {now.isoformat()}")
     print(f"Window: {time_min} to {time_max}")
     print(f"Calendars: {[c['label'] for c in calendars]}")
     print()
 
-    # Build a service per calendar
     services = {}
     for cal in calendars:
         try:
@@ -290,21 +346,66 @@ def main():
             sys.exit(1)
     print()
 
-    total_created = total_updated = total_deleted = 0
+    token_store = load_token_store()
+    deltas_by_source = {}
     errors = []
 
+    # Phase 1: pull deltas (or baseline) per source calendar
     for source_cal in calendars:
-        for target_cal in calendars:
-            if source_cal["id"] == target_cal["id"]:
-                continue
+        source_id = source_cal["id"]
+        entry = token_store.get(source_id) or {}
+        prior_token = entry.get("token")
+        baseline_at_iso = entry.get("baseline_at")
 
+        if prior_token and baseline_at_iso:
+            try:
+                age = now - datetime.fromisoformat(baseline_at_iso)
+                if age >= BASELINE_MAX_AGE:
+                    prior_token = None  # force re-baseline to refresh window
+            except ValueError:
+                prior_token = None
+
+        try:
+            events, new_token, was_baseline = fetch_events_delta(
+                services[source_id], source_id, time_min, time_max, prior_token,
+            )
+        except HttpError as e:
+            print(f"  {source_cal['label']}: list FAILED - {e}")
+            errors.append(f"list:{source_cal['label']}")
+            continue
+
+        deltas_by_source[source_id] = {
+            "events": events,
+            "new_token": new_token,
+            "was_baseline": was_baseline,
+            "prior_baseline_at": baseline_at_iso,
+        }
+        kind = "baseline" if was_baseline else "delta"
+        print(f"  {source_cal['label']}: {len(events)} event(s) in {kind}")
+    print()
+
+    # Phase 2: reconcile each non-empty delta against every target
+    total_created = total_updated = total_deleted = 0
+    failed_sources = set()
+
+    for source_cal in calendars:
+        source_id = source_cal["id"]
+        delta = deltas_by_source.get(source_id)
+        if not delta:
+            continue
+        events = delta["events"]
+        if not events:
+            continue
+
+        for target_cal in calendars:
+            if target_cal["id"] == source_id:
+                continue
             pair_label = f"{source_cal['label']} -> {target_cal['label']}"
             try:
                 created, updated, deleted = sync_pair(
-                    services[source_cal["id"]],
                     services[target_cal["id"]],
                     source_cal, target_cal,
-                    time_min, time_max,
+                    events, time_min, time_max,
                 )
                 total_created += created
                 total_updated += updated
@@ -315,12 +416,32 @@ def main():
                     print(f"  {pair_label}: no changes")
             except Exception as e:
                 errors.append(pair_label)
+                failed_sources.add(source_id)
                 print(f"  {pair_label}: ERROR - {e}")
+
+    # Phase 3: persist tokens only for sources whose pairs all succeeded.
+    # Idempotent reconciliation means replaying a delta on retry is safe.
+    for source_id, delta in deltas_by_source.items():
+        if source_id in failed_sources:
+            continue
+        new_token = delta["new_token"]
+        if not new_token:
+            continue
+        baseline_at = (
+            now.isoformat() if delta["was_baseline"]
+            else (delta["prior_baseline_at"] or now.isoformat())
+        )
+        token_store[source_id] = {"token": new_token, "baseline_at": baseline_at}
+
+    try:
+        save_token_store(token_store)
+    except OSError as e:
+        print(f"  Warning: could not persist token cache ({e})")
 
     print()
     print(f"Totals: +{total_created} created, ~{total_updated} updated, -{total_deleted} deleted")
     if errors:
-        print(f"Errors in {len(errors)} pair(s): {', '.join(errors)}")
+        print(f"Errors in {len(errors)} step(s): {', '.join(errors)}")
         sys.exit(1)
     else:
         print("Sync completed successfully.")
