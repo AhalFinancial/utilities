@@ -19,4 +19,4 @@ calendars:
     personal: true
     # Service account
 
-sync_window_days: 14
+sync_window_days: 7

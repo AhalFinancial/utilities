@@ -2,7 +2,7 @@ name: Calendar Sync
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -18,6 +18,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r calendarsync/requirements.txt
 
+      - name: Restore syncToken cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .sync-cache
+          key: calendarsync-tokens-${{ github.run_id }}
+          restore-keys: |
+            calendarsync-tokens-
+
       - name: Run calendar sync
         env:
           GOOGLE_SA_AHAL: ${{ secrets.GOOGLE_SA_AHAL }}
@@ -25,3 +33,10 @@ jobs:
           GOOGLE_OAUTH_REURBANO: ${{ secrets.GOOGLE_OAUTH_REURBANO }}
           GOOGLE_SA_PERSONAL: ${{ secrets.GOOGLE_SA_PERSONAL }}
         run: python calendarsync/sync.py
+
+      - name: Save syncToken cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .sync-cache
+          key: calendarsync-tokens-${{ github.run_id }}
