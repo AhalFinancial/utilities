@@ -275,15 +275,36 @@ def sync_pair(target_service, source_cal, target_cal, source_events, time_min, t
 
     existing_blockers = fetch_managed_blockers(target_service, target_id, time_min, time_max)
 
+    # Index blockers from THIS source by sourceEventId. If multiple blockers
+    # share the same key (residue from prior overlapping runs that lost the
+    # dedup race), keep the OLDEST as canonical and queue the rest for
+    # deletion so the calendar self-heals on every sync.
     blocker_map = {}
+    orphan_dupes = []
     for b in existing_blockers:
         props = b.get("extendedProperties", {}).get("private", {})
-        if props.get("calendarSyncSource") == source_id:
-            key = props.get("sourceEventId")
-            if key:
-                blocker_map[key] = b
+        if props.get("calendarSyncSource") != source_id:
+            continue
+        key = props.get("sourceEventId")
+        if not key:
+            continue
+        existing = blocker_map.get(key)
+        if existing is None:
+            blocker_map[key] = b
+        elif (b.get("created") or "") < (existing.get("created") or ""):
+            orphan_dupes.append(existing)
+            blocker_map[key] = b
+        else:
+            orphan_dupes.append(b)
 
     created = updated = deleted = 0
+
+    # Self-heal: delete same-source duplicate blockers before normal reconcile.
+    for blocker in orphan_dupes:
+        target_service.events().delete(
+            calendarId=target_id, eventId=blocker["id"]
+        ).execute()
+        deleted += 1
 
     for event in source_events:
         existing = blocker_map.get(event["id"])
