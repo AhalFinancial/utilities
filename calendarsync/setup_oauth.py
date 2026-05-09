@@ -41,7 +41,7 @@ def main():
         sys.exit(1)
 
     flow = InstalledAppFlow.from_client_secrets_file(str(client_file), SCOPES)
-    creds = flow.run_local_server(port=0)
+    creds = flow.run_local_server(port=0, prompt="consent", access_type="offline")
 
     token_data = {
         "token": creds.token,
