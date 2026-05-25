@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
+from google.auth.exceptions import RefreshError
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -392,6 +393,17 @@ def main():
         except HttpError as e:
             print(f"  {source_cal['label']}: list FAILED - {e}")
             errors.append(f"list:{source_cal['label']}")
+            continue
+        except RefreshError as e:
+            # OAuth refresh token revoked/expired (e.g. Testing-mode 7-day
+            # expiry, password change, or manual revoke). Skip this calendar
+            # so the other sources keep syncing instead of crashing the run.
+            print(
+                f"  {source_cal['label']}: OAuth refresh FAILED - {e}. "
+                f"Run `python calendarsync/setup_oauth.py {source_id}` locally "
+                f"and update the GOOGLE_OAUTH_{source_id.upper()} GitHub secret."
+            )
+            errors.append(f"auth:{source_cal['label']}")
             continue
 
         deltas_by_source[source_id] = {
