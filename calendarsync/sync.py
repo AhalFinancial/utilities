@@ -41,10 +41,13 @@ CRED_MAP = {
         "env": "GOOGLE_OAUTH_REURBANO",
         "file": "oauth-reurbano.json",
     },
+    # Personal uses the service account: the OAuth refresh token expired
+    # (invalid_grant) and there is no client-secret file to re-run the flow.
+    # The service account has access to the personal calendar (shared).
     "personal": {
-        "type": "oauth",
-        "env": "GOOGLE_OAUTH_PERSONAL",
-        "file": "oauth-personal.json",
+        "type": "service_account",
+        "env": "GOOGLE_SA_PERSONAL",
+        "file": "sa-personal.json",
     },
 }
 
@@ -356,14 +359,19 @@ def main():
     print()
 
     services = {}
+    authed = []
     for cal in calendars:
         try:
             creds = get_credentials(cal)
             services[cal["id"]] = build_service(creds)
+            authed.append(cal)
             print(f"  Auth OK: {cal['label']}")
         except Exception as e:
-            print(f"  Auth FAILED: {cal['label']} - {e}")
-            sys.exit(1)
+            print(f"  Auth FAILED: {cal['label']} - {e} (skipping this calendar)")
+    calendars = authed
+    if not calendars:
+        print("No calendars authenticated; aborting.")
+        sys.exit(1)
     print()
 
     token_store = load_token_store()
@@ -419,6 +427,10 @@ def main():
 
         for target_cal in calendars:
             if target_cal["id"] == source_id:
+                continue
+            # Personal is source-only: personal events sync OUT to work
+            # calendars, but work events must never appear on personal.
+            if target_cal.get("personal"):
                 continue
             pair_label = f"{source_cal['label']} -> {target_cal['label']}"
             try:

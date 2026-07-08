@@ -17,6 +17,7 @@ calendars:
   - id: eduardomaass@gmail.com
     label: Personal
     personal: true
-    # Service account
+    # Service account (sa-personal.json). Source-only: personal events sync
+    # OUT to work calendars, but work events never sync INTO personal.
 
 sync_window_days: 7
