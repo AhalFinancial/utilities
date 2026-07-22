@@ -1,8 +1,11 @@
 name: Calendar Sync
 
 on:
-  schedule:
-    - cron: "*/30 * * * *"
+  # Cron desactivado 2026-07-22: el sync estaba super-duplicando blockers en
+  # semanas futuras. Se apaga el schedule hasta corregir la causa raíz.
+  # Para reactivar, descomentar el bloque schedule y push a master.
+  # schedule:
+  #   - cron: "*/30 * * * *"
   workflow_dispatch:
 
 jobs:
